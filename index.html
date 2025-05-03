@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FX Watchlist Matrix</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        :root {
+            --anomaly-bg: #ffe6e6;
+            --positive-color: #28a745;
+            --negative-color: #dc3545;
+        }
+        
+        body {
+            background-color: #f8f9fa;
+        }
+        
+        .container {
+            max-width: 1400px;
+        }
+        
+        .metrics-table {
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        
+        .metrics-table th {
+            background-color: #e9ecef;
+            border-top: none;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .anomaly {
+            background-color: var(--anomaly-bg);
+        }
+        
+        .change-cell {
+            min-width: 120px;
+        }
+        
+        .change-value {
+            font-weight: 500;
+        }
+        
+        .change-percentage {
+            font-size: 0.85rem;
+        }
+        
+        .positive {
+            color: var(--positive-color);
+        }
+        
+        .negative {
+            color: var(--negative-color);
+        }
+        
+        .pagination {
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        .alert-badge {
+            background-color: #dc3545;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        
+        .add-pair-form {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .currency-select {
+            width: 120px;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+            display: none;
+        }
+        
+        .loading-spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        .pair-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .pair-row:hover .remove-pair {
+            opacity: 1;
+        }
+        
+        .remove-pair {
+            opacity: 0.7;
+            transition: opacity 0.2s;
+            cursor: pointer;
+            color: #dc3545;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        @media (max-width: 992px) {
+            .metrics-table {
+                font-size: 0.9rem;
+            }
+            
+            .change-cell {
+                min-width: 100px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay">
+        <div class="loading-spinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mt-4">
+        <div class="row mb-4">
+            <div class="col">
+                <h2>FX Rate Matrix Dashboard</h2>
+                <p class="text-muted">Real-time foreign exchange rates with trend analysis</p>
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-outline-secondary" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <a href="{{ url_for('clear_cache') }}" class="btn btn-outline-danger">
+                    <i class="bi bi-trash"></i> Clear Cache
+                </a>
+            </div>
+        </div>
+        
+        <!-- Add Currency Pair Form -->
+        <div class="add-pair-form">
+            <h5>Add Currency Pair</h5>
+            <form action="{{ url_for('add_pair') }}" method="POST" class="row g-3 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label">Base Currency</label>
+                    <select name="base" class="form-select currency-select" required>
+                        <option value="">Select...</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                        <option value="JPY">JPY</option>
+                        <option value="CHF">CHF</option>
+                        <option value="AUD">AUD</option>
+                        <option value="CAD">CAD</option>
+                        <option value="NZD">NZD</option>
+                        <option value="CNY">CNY</option>
+                        <option value="INR">INR</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label class="form-label">Quote Currency</label>
+                    <select name="quote" class="form-select currency-select" required>
+                        <option value="">Select...</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                        <option value="JPY">JPY</option>
+                        <option value="CHF">CHF</option>
+                        <option value="AUD">AUD</option>
+                        <option value="CAD">CAD</option>
+                        <option value="NZD">NZD</option>
+                        <option value="CNY">CNY</option>
+                        <option value="INR">INR</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> Add Pair
+                    </button>
+                </div>
+            </form>
+        </div>
+        
+        {% if metrics %}
+        <div class="table-responsive">
+            <table class="table table-hover metrics-table">
+                <thead>
+                    <tr>
+                        <th>Pair</th>
+                        <th>Current</th>
+                        <th>7D Change</th>
+                        <th>30D Change</th>
+                        <th>YTD</th>
+                        <th>1Y Change</th>
+                        <th>3Y Change</th>
+                        <th>Alert</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pair, data in metrics.items() %}
+                    <tr class="pair-row {% if data.anomaly %}anomaly{% endif %}">
+                        <td>
+                            <strong>{{ pair }}</strong>
+                            {% if data.anomaly %}<i class="bi bi-exclamation-circle text-danger ms-1" title="Anomaly detected"></i>{% endif %}
+                        </td>
+                        <td class="text-end">{{ "%.4f"|format(data.current) }}</td>
+                        <td class="change-cell">
+                            {% if data.7d_abs is not none and not data.7d_abs is nan %}
+                            <div class="d-flex flex-column align-items-end">
+                                <span class="change-value {{ 'positive' if data.7d_abs > 0 else 'negative' if data.7d_abs < 0 else '' }}">
+                                    {{ "+%.4f"|format(data.7d_abs) if data.7d_abs > 0 else "%.4f"|format(data.7d_abs) }}
+                                </span>
+                                <small class="change-percentage text-muted">
+                                    {{ "+%.2f"|format(data.7d_pct) if data.7d_pct > 0 else "%.2f"|format(data.7d_pct) }}%
+                                </small>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="change-cell">
+                            {% if data.30d_abs is not none and not data.30d_abs is nan %}
+                            <div class="d-flex flex-column align-items-end">
+                                <span class="change-value {{ 'positive' if data.30d_abs > 0 else 'negative' if data.30d_abs < 0 else '' }}">
+                                    {{ "+%.4f"|format(data.30d_abs) if data.30d_abs > 0 else "%.4f"|format(data.30d_abs) }}
+                                </span>
+                                <small class="change-percentage text-muted">
+                                    {{ "+%.2f"|format(data.30d_pct) if data.30d_pct > 0 else "%.2f"|format(data.30d_pct) }}%
+                                </small>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="change-cell">
+                            {% if data.ytd_abs is not none and not data.ytd_abs is nan %}
+                            <div class="d-flex flex-column align-items-end">
+                                <span class="change-value {{ 'positive' if data.ytd_abs > 0 else 'negative' if data.ytd_abs < 0 else '' }}">
+                                    {{ "+%.4f"|format(data.ytd_abs) if data.ytd_abs > 0 else "%.4f"|format(data.ytd_abs) }}
+                                </span>
+                                <small class="change-percentage text-muted">
+                                    {{ "+%.2f"|format(data.ytd_pct) if data.ytd_pct > 0 else "%.2f"|format(data.ytd_pct) }}%
+                                </small>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="change-cell">
+                            {% if data.1y_abs is not none and not data.1y_abs is nan %}
+                            <div class="d-flex flex-column align-items-end">
+                                <span class="change-value {{ 'positive' if data.1y_abs > 0 else 'negative' if data.1y_abs < 0 else '' }}">
+                                    {{ "+%.4f"|format(data.1y_abs) if data.1y_abs > 0 else "%.4f"|format(data.1y_abs) }}
+                                </span>
+                                <small class="change-percentage text-muted">
+                                    {{ "+%.2f"|format(data.1y_pct) if data.1y_pct > 0 else "%.2f"|format(data.1y_pct) }}%
+                                </small>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="change-cell">
+                            {% if data.3y_abs is not none and not data.3y_abs is nan %}
+                            <div class="d-flex flex-column align-items-end">
+                                <span class="change-value {{ 'positive' if data.3y_abs > 0 else 'negative' if data.3y_abs < 0 else '' }}">
+                                    {{ "+%.4f"|format(data.3y_abs) if data.3y_abs > 0 else "%.4f"|format(data.3y_abs) }}
+                                </span>
+                                <small class="change-percentage text-muted">
+                                    {{ "+%.2f"|format(data.3y_pct) if data.3y_pct > 0 else "%.2f"|format(data.3y_pct) }}%
+                                </small>
+                            </div>
+                            {% else %}
+                            <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if data.anomaly %}
+                            <span class="alert-badge">!</span>
+                            {% endif %}
+                        </td>
+                        <td class="pair-actions">
+                            {% set parts = pair.split('/') %}
+                            <form action="{{ url_for('remove_pair', base=parts[0], quote=parts[1]) }}" method="POST" class="d-inline">
+                                <button type="submit" class="btn btn-sm btn-outline-danger remove-pair" title="Remove pair">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <nav class="pagination">
+            {% if pagination.page > 1 %}
+                <a href="?page={{ pagination.page - 1 }}" class="btn btn-outline-primary mx-1">
+                    <i class="bi bi-chevron-left"></i> Previous
+                </a>
+            {% endif %}
+            
+            <span class="mx-3 align-self-center">
+                Page {{ pagination.page }} of {{ pagination.total_pages }}
+            </span>
+            
+            {% if pagination.page < pagination.total_pages %}
+                <a href="?page={{ pagination.page + 1 }}" class="btn btn-outline-primary mx-1">
+                    Next <i class="bi bi-chevron-right"></i>
+                </a>
+            {% endif %}
+        </nav>
+        {% else %}
+        <div class="empty-state">
+            <h4>No Currency Pairs Found</h4>
+            <p class="text-muted mb-0">Add currency pairs using the form above to start tracking exchange rates.</p>
+        </div>
+        {% endif %}
+        
+        <footer class="text-center mt-5 mb-3">
+            <small class="text-muted">
+                Data provided by Yahoo Finance. Last updated: {{ current_time or '' }}
+            </small>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Show loading overlay for link clicks and form submissions
+        document.querySelectorAll('a, form').forEach(element => {
+            element.addEventListener('click', () => {
+                document.querySelector('.loading-overlay').style.display = 'block';
+            });
+        });
+        
+        // Auto-refresh page every 5 minutes
+        setTimeout(() => {
+            location.reload();
+        }, 300000);
+        
+        // Prevent selecting same currency for base and quote
+        const baseSelect = document.querySelector('select[name="base"]');
+        const quoteSelect = document.querySelector('select[name="quote"]');
+        
+        function updateCurrencyOptions() {
+            const baseValue = baseSelect.value;
+            const quoteValue = quoteSelect.value;
+            
+            Array.from(baseSelect.options).forEach(option => {
+                option.disabled = option.value === quoteValue;
+            });
+            
+            Array.from(quoteSelect.options).forEach(option => {
+                option.disabled = option.value === baseValue;
+            });
+        }
+        
+        baseSelect.addEventListener('change', updateCurrencyOptions);
+        quoteSelect.addEventListener('change', updateCurrencyOptions);
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', updateCurrencyOptions);
+    </script>
+</body>
+</html>
