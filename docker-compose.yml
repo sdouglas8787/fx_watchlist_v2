@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  fx-watchlist:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-your_secure_secret_key_here}
+      - FLASK_ENV=production
+    volumes:
+      - cache:/app/cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  cache:
